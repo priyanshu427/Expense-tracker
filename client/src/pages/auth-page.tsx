@@ -19,8 +19,6 @@ export default function AuthPage() {
     return null;
   }
 
-  //rabbi
-
   return (
     <div className="min-h-screen grid grid-cols-1 md:grid-cols-2">
       {/* LEFT SIDE: The Login Form */}
