@@ -1,8 +1,11 @@
 import { defineConfig } from "drizzle-kit";
-import "dotenv/config"; // <--- This is the magic line that was missing!
+import * as dotenv from "dotenv";
+
+// Load the .env file so we can read the DATABASE_URL
+dotenv.config();
 
 if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL is missing");
+  throw new Error("DATABASE_URL is missing. Did you forget to create the .env file?");
 }
 
 export default defineConfig({
