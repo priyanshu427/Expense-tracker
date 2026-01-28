@@ -1,19 +1,24 @@
-import { users, type User, type InsertUser } from "../shared/schema";
-import { db, pool } from "./db"; // Combined import
-import { eq } from "drizzle-orm";
+import { users, expenses, type User, type InsertUser, type Expense, type InsertExpense } from "../shared/schema";
+import { db, pool } from "./db";
+import { eq, desc } from "drizzle-orm";
 import session from "express-session";
-import { createRequire } from "module"; // Import the tool to make 'require' work
+import { createRequire } from "module";
 
-// 1. Create a custom 'require' function for this file
 const require = createRequire(import.meta.url);
-// 2. Use it to load the old package safely
-const connectPg = require("connect-pg-simple");
-const PostgresSessionStore = connectPg(session);
+
+// @ts-ignore
+const connectPg = require("connect-pg-simple")(session);
+const PostgresSessionStore = connectPg;
 
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  
+  // New functions for Expenses
+  createExpense(userId: number, expense: InsertExpense): Promise<Expense>;
+  getExpenses(userId: number): Promise<Expense[]>;
+  
   sessionStore: session.Store;
 }
 
@@ -40,6 +45,24 @@ export class DatabaseStorage implements IStorage {
   async createUser(insertUser: InsertUser): Promise<User> {
     const [user] = await db.insert(users).values(insertUser).returning();
     return user;
+  }
+
+  // --- NEW: Save an expense ---
+  async createExpense(userId: number, expense: InsertExpense): Promise<Expense> {
+    const [newExpense] = await db
+      .insert(expenses)
+      .values({ ...expense, userId })
+      .returning();
+    return newExpense;
+  }
+
+  // --- NEW: Get all expenses for a user ---
+  async getExpenses(userId: number): Promise<Expense[]> {
+    return await db
+      .select()
+      .from(expenses)
+      .where(eq(expenses.userId, userId))
+      .orderBy(desc(expenses.date)); // Show newest first
   }
 }
 
