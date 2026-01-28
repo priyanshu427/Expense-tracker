@@ -2,8 +2,12 @@ import { Pool, neonConfig } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-serverless';
 import ws from "ws";
 import * as schema from "@shared/schema";
+import "dotenv/config"; // <--- THIS IS THE KEY FIX
 
 neonConfig.webSocketConstructor = ws;
+
+// Debugging check: Print to console if the key is found
+console.log("Database URL found:", !!process.env.DATABASE_URL);
 
 if (!process.env.DATABASE_URL) {
   throw new Error(
