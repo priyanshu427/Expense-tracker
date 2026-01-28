@@ -1,12 +1,17 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
-async function throwIfResNotOk(res: Response) {
-  if (!res.ok) {
-    const text = (await res.text()) || res.statusText;
-    throw new Error(`${res.status}: ${text}`);
-  }
-}
+// This creates the main "engine" that manages all your data fetching
+export const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false, // Don't reload data just because I clicked the window
+      staleTime: Infinity, // Data stays "fresh" forever unless we say otherwise
+      retry: false, // If an API call fails, don't keep retrying immediately
+    },
+  },
+});
 
+// This is a helper function to make API requests (GET, POST, etc.) easier
 export async function apiRequest(
   method: string,
   url: string,
@@ -14,44 +19,23 @@ export async function apiRequest(
 ): Promise<Response> {
   const res = await fetch(url, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
+    headers: {
+      "Content-Type": "application/json",
+    },
     body: data ? JSON.stringify(data) : undefined,
-    credentials: "include",
   });
 
-  await throwIfResNotOk(res);
+  if (!res.ok) {
+    const json = await res.json();
+    throw new Error(json.message || res.statusText);
+  }
+
   return res;
 }
 
-type UnauthorizedBehavior = "returnNull" | "throw";
-export const getQueryFn: <T>(options: {
-  on401: UnauthorizedBehavior;
-}) => QueryFunction<T> =
-  ({ on401: unauthorizedBehavior }) =>
-  async ({ queryKey }) => {
-    const res = await fetch(queryKey.join("/") as string, {
-      credentials: "include",
-    });
-
-    if (unauthorizedBehavior === "returnNull" && res.status === 401) {
-      return null;
-    }
-
-    await throwIfResNotOk(res);
-    return await res.json();
-  };
-
-export const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      queryFn: getQueryFn({ on401: "throw" }),
-      refetchInterval: false,
-      refetchOnWindowFocus: false,
-      staleTime: Infinity,
-      retry: false,
-    },
-    mutations: {
-      retry: false,
-    },
-  },
-});
+// This helper is used by useQuery to automatically fetch data from your API
+export const getQueryClient: QueryFunction = async ({ queryKey }) => {
+  const url = queryKey[0] as string;
+  const res = await apiRequest("GET", url);
+  return res.json();
+};
