@@ -5,15 +5,9 @@ import session from "express-session";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
-import { User as SelectUser } from "@shared/schema";
+import { User } from "@shared/schema";
 
 const scryptAsync = promisify(scrypt);
-
-export async function hashPassword(password: string) {
-  const salt = randomBytes(16).toString("hex");
-  const buf = (await scryptAsync(password, salt, 64)) as Buffer;
-  return `${buf.toString("hex")}.${salt}`;
-}
 
 async function comparePasswords(supplied: string, stored: string) {
   const [hashed, salt] = stored.split(".");
@@ -24,7 +18,7 @@ async function comparePasswords(supplied: string, stored: string) {
 
 export function setupAuth(app: Express) {
   const sessionSettings: session.SessionOptions = {
-    secret: "super_secret_key_change_this_later",
+    secret: process.env.SESSION_SECRET || "super_secret_key_123", // Fallback key for dev
     resave: false,
     saveUninitialized: false,
     store: storage.sessionStore,
@@ -49,7 +43,7 @@ export function setupAuth(app: Express) {
     }),
   );
 
-  passport.serializeUser((user, done) => done(null, (user as SelectUser).id));
+  passport.serializeUser((user, done) => done(null, (user as User).id));
   passport.deserializeUser(async (id: number, done) => {
     const user = await storage.getUser(id);
     done(null, user);
@@ -62,7 +56,10 @@ export function setupAuth(app: Express) {
         return res.status(400).send("Username already exists");
       }
 
-      const hashedPassword = await hashPassword(req.body.password);
+      const salt = randomBytes(16).toString("hex");
+      const buf = (await scryptAsync(req.body.password, salt, 64)) as Buffer;
+      const hashedPassword = `${buf.toString("hex")}.${salt}`;
+
       const user = await storage.createUser({
         ...req.body,
         password: hashedPassword,
